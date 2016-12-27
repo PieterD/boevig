@@ -156,6 +156,10 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 
 	gli.ClearColor(0.0, 0.0, 0.0, 1.0)
 
+	draw, err := gli.NewDraw(gli.TRIANGLES, program, vao,
+		gli.DrawIndex(idxvbo))
+	Panic(err)
+
 	for !window.ShouldClose() && !eh.Fin(false) {
 		//fmt.Printf("draw\n")
 
@@ -168,11 +172,8 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 		gli.Clear()
 
 		// Draw scene
-		program.Use()
-		vao.Use()
 		texture.Use(1)
-		idxvbo.Use()
-		gl.DrawElements(gl.TRIANGLES, grid.Vertices(), gl.UNSIGNED_INT, gl.PtrOffset(0))
+		draw.Draw(0, grid.Vertices())
 
 		window.Swap()
 	}

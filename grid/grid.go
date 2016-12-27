@@ -176,6 +176,6 @@ func (grid *Grid) Set(x, y, r int, fore, back Color) {
 	data4[3] = uint8(back)
 }
 
-func (grid *Grid) Vertices() int32 {
-	return int32(len(grid.index))
+func (grid *Grid) Vertices() int {
+	return len(grid.index)
 }
