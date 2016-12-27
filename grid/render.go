@@ -155,7 +155,8 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 	program.Uniform("runeSize").SetFloat(float32(grid.RuneSize().X), float32(grid.RuneSize().Y))
 
 	draw, err := gli.NewDraw(gli.TRIANGLES, program, vao,
-		gli.DrawIndex(idxvbo))
+		gli.DrawIndex(idxvbo),
+	gli.DrawTexture(texture, 1))
 	Panic(err)
 
 	clear, err := gli.NewClear(gli.ClearColor(0,0,0,1))
@@ -172,7 +173,7 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 
 		// Draw scene
 		clear.Clear()
-		texture.Use(1)
+		//texture.Use(1)
 		draw.Draw(0, grid.Vertices())
 
 		window.Swap()
