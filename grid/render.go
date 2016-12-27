@@ -6,6 +6,7 @@ import (
 	. "github.com/PieterD/boevig/pan"
 
 	"github.com/PieterD/glimmer/gli"
+	"github.com/PieterD/glimmer/win"
 	"github.com/go-gl/gl/v2.1/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 )
@@ -59,21 +60,11 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 	defer eh.Fin(true)
 	width := 800
 	height := 600
-	// Initialize glfw and create window
-	err := glfw.Init()
+	window, err := win.New(
+		win.Size(width, height),
+		win.Resizable())
 	Panic(err)
-	defer glfw.Terminate()
-	glfw.WindowHint(glfw.Resizable, glfw.True)
-	glfw.WindowHint(glfw.ContextVersionMajor, 2)
-	glfw.WindowHint(glfw.ContextVersionMinor, 1)
-	window, err := glfw.CreateWindow(width, height, "Roguelike", nil, nil)
 	defer window.Destroy()
-	Panic(err)
-	window.MakeContextCurrent()
-
-	// Initialize opengl
-	err = gl.Init()
-	Panic(err)
 
 	// Create shaders and program
 	program, err := gli.NewProgram(vertexShaderText, fragmentShaderText)
@@ -114,7 +105,9 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 	mousetrans := newMouseTranslator(grid, eh)
 	keytrans := newKeyTranslator()
 
-	window.SetSizeCallback(func(win *glfw.Window, w, h int) {
+	w := window.Glfw()
+
+	w.SetSizeCallback(func(win *glfw.Window, w, h int) {
 		//fmt.Printf("resize\n")
 		width = w
 		height = h
@@ -126,7 +119,7 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 		vbo.Upload(vData)
 	})
 
-	window.SetKeyCallback(func(win *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+	w.SetKeyCallback(func(win *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
 		//fmt.Printf("key=%v code=%d, action=%v, mods=%v\n", key, scancode, action, mods)
 		e, ok := keytrans.Key(key, action, mods)
 		if ok {
@@ -134,16 +127,16 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 		}
 	})
 
-	window.SetCharCallback(func(win *glfw.Window, key rune) {
+	w.SetCharCallback(func(win *glfw.Window, key rune) {
 		eh.Char(key)
 		//fmt.Printf("char=%d(%c)\n", key, key)
 	})
 
-	window.SetCursorPosCallback(func(win *glfw.Window, x float64, y float64) {
+	w.SetCursorPosCallback(func(win *glfw.Window, x float64, y float64) {
 		mousetrans.Pos(x, y)
 	})
 
-	window.SetMouseButtonCallback(func(win *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
+	w.SetMouseButtonCallback(func(win *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
 		mousetrans.Button(button, action, mods)
 	})
 
@@ -161,7 +154,7 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 	program.Uniform("colorData[0]").SetFloat(colorData...)
 	program.Uniform("runeSize").SetFloat(float32(grid.RuneSize().X), float32(grid.RuneSize().Y))
 
-	gl.ClearColor(0.0, 0.0, 0.0, 1.0)
+	gli.ClearColor(0.0, 0.0, 0.0, 1.0)
 
 	for !window.ShouldClose() && !eh.Fin(false) {
 		//fmt.Printf("draw\n")
@@ -172,7 +165,7 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 		_, _, vData = grid.Buffers()
 		vbo.Update(0, vData)
 
-		gl.Clear(gl.COLOR_BUFFER_BIT)
+		gli.Clear()
 
 		// Draw scene
 		program.Use()
@@ -181,7 +174,6 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 		idxvbo.Use()
 		gl.DrawElements(gl.TRIANGLES, grid.Vertices(), gl.UNSIGNED_INT, gl.PtrOffset(0))
 
-		window.SwapBuffers()
-		glfw.WaitEvents()
+		window.Swap()
 	}
 }
