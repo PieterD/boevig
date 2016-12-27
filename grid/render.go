@@ -7,8 +7,8 @@ import (
 
 	"github.com/PieterD/glimmer/gli"
 	"github.com/PieterD/glimmer/win"
-	"github.com/go-gl/gl/v2.1/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
+	"image"
 )
 
 type EventHandler interface {
@@ -111,7 +111,7 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 		//fmt.Printf("resize\n")
 		width = w
 		height = h
-		gl.Viewport(0, 0, int32(width), int32(height))
+		gli.Viewport(image.Rectangle{Max: image.Point{X: width, Y: height}})
 		grid.Resize(width, height)
 		vCoords, vIndex, vData := grid.Buffers()
 		posvbo.Upload(vCoords)
