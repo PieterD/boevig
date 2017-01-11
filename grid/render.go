@@ -1,14 +1,12 @@
 package grid
 
 import (
+	"image"
 	"runtime"
 
 	. "github.com/PieterD/boevig/pan"
-
 	"github.com/PieterD/glimmer/gli"
 	"github.com/PieterD/glimmer/win"
-	"github.com/go-gl/glfw/v3.2/glfw"
-	"image"
 )
 
 type EventHandler interface {
@@ -60,122 +58,115 @@ func Run(charset string, charwidth, charheight int, eh EventHandler) {
 	defer eh.Fin(true)
 	width := 800
 	height := 600
-	window, err := win.New(
+	Panic(win.Start(
 		win.Size(width, height),
-		win.Resizable())
-	Panic(err)
-	defer window.Destroy()
+		win.Resizable(),
+		win.Func(func (window *win.Window){
+			// Create shaders and program
+			program, err := gli.NewProgram(vertexShaderText, fragmentShaderText)
+			Panic(err)
+			defer program.Delete()
 
-	// Create shaders and program
-	program, err := gli.NewProgram(vertexShaderText, fragmentShaderText)
-	Panic(err)
-	defer program.Delete()
+			// Load and initialize texture
+			img, err := gli.LoadImage(charset)
+			Panic(err)
+			texture, err := gli.NewTexture(img,
+				gli.TextureFilter(gli.LINEAR, gli.LINEAR),
+				gli.TextureWrap(gli.CLAMP_TO_EDGE, gli.CLAMP_TO_EDGE))
+			Panic(err)
+			defer texture.Delete()
 
-	// Load and initialize texture
-	img, err := gli.LoadImage(charset)
-	Panic(err)
-	texture, err := gli.NewTexture(img,
-		gli.TextureFilter(gli.LINEAR, gli.LINEAR),
-		gli.TextureWrap(gli.CLAMP_TO_EDGE, gli.CLAMP_TO_EDGE))
-	Panic(err)
-	defer texture.Delete()
+			// Create Vertex ArrayObject
+			vao, err := gli.NewVAO()
+			Panic(err)
+			defer vao.Delete()
 
-	// Create Vertex ArrayObject
-	vao, err := gli.NewVAO()
-	Panic(err)
-	defer vao.Delete()
+			// Create grid
+			grid, err := NewGrid(charwidth, charheight, texture.Size().X, texture.Size().Y)
+			Panic(err)
+			grid.Resize(width, height)
+			vCoords, vIndex, vData := grid.Buffers()
 
-	// Create grid
-	grid, err := NewGrid(charwidth, charheight, texture.Size().X, texture.Size().Y)
-	Panic(err)
-	grid.Resize(width, height)
-	vCoords, vIndex, vData := grid.Buffers()
+			// Create grid buffers
+			posvbo, err := gli.NewBuffer(vCoords)
+			Panic(err)
+			defer posvbo.Delete()
+			idxvbo, err := gli.NewBuffer(vIndex, gli.BufferElementArray())
+			Panic(err)
+			defer idxvbo.Delete()
+			vbo, err := gli.NewBuffer(vData, gli.BufferAccessFrequency(gli.DYNAMIC))
+			Panic(err)
+			defer vbo.Delete()
 
-	// Create grid buffers
-	posvbo, err := gli.NewBuffer(vCoords)
-	Panic(err)
-	defer posvbo.Delete()
-	idxvbo, err := gli.NewBuffer(vIndex, gli.BufferElementArray())
-	Panic(err)
-	defer idxvbo.Delete()
-	vbo, err := gli.NewBuffer(vData, gli.BufferAccessFrequency(gli.DYNAMIC))
-	Panic(err)
-	defer vbo.Delete()
+			mousetrans := newMouseTranslator(grid, eh)
+			keytrans := newKeyTranslator()
 
-	mousetrans := newMouseTranslator(grid, eh)
-	keytrans := newKeyTranslator()
+			// Set up VAO
+			vao.Enable(2, posvbo, program.Attrib("position"))
+			vao.Enable(2, vbo, program.Attrib("texCoord"),
+				gli.VAOStride(4))
+			vao.Enable(1, vbo, program.Attrib("foreColor"),
+				gli.VAOStride(4), gli.VAOOffset(2))
+			vao.Enable(1, vbo, program.Attrib("backColor"),
+				gli.VAOStride(4), gli.VAOOffset(3))
 
-	w := window.Glfw()
+			// Set uniforms
+			program.Uniform("tex").SetSampler(1)
+			program.Uniform("colorData[0]").SetFloat(colorData...)
+			program.Uniform("runeSize").SetFloat(float32(grid.RuneSize().X), float32(grid.RuneSize().Y))
 
-	w.SetSizeCallback(func(win *glfw.Window, w, h int) {
-		//fmt.Printf("resize\n")
-		width = w
-		height = h
-		gli.Viewport(image.Rectangle{Max: image.Point{X: width, Y: height}})
-		grid.Resize(width, height)
-		vCoords, vIndex, vData := grid.Buffers()
-		posvbo.Upload(vCoords)
-		idxvbo.Upload(vIndex)
-		vbo.Upload(vData)
-	})
+			draw, err := gli.NewDraw(gli.TRIANGLES, program, vao,
+				gli.DrawIndex(idxvbo),
+				gli.DrawTexture(texture, 1))
+			Panic(err)
 
-	w.SetKeyCallback(func(win *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
-		//fmt.Printf("key=%v code=%d, action=%v, mods=%v\n", key, scancode, action, mods)
-		e, ok := keytrans.Key(key, action, mods)
-		if ok {
-			eh.Key(e)
-		}
-	})
+			clear, err := gli.NewClear(gli.ClearColor(0, 0, 0, 1))
+			Panic(err)
 
-	w.SetCharCallback(func(win *glfw.Window, key rune) {
-		eh.Char(key)
-		//fmt.Printf("char=%d(%c)\n", key, key)
-	})
+			for {
+				ie := window.Poll()
+				if ie == nil {
+					if eh.Fin(false) {
+						break
+					}
+					// Render scene
+					grid.clearData()
+					eh.Draw(grid)
+					_, _, vData = grid.Buffers()
+					vbo.Update(0, vData)
 
-	w.SetCursorPosCallback(func(win *glfw.Window, x float64, y float64) {
-		mousetrans.Pos(x, y)
-	})
+					// Draw scene
+					clear.Clear()
+					//texture.Use(1)
+					draw.Draw(0, grid.Vertices())
 
-	w.SetMouseButtonCallback(func(win *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
-		mousetrans.Button(button, action, mods)
-	})
+					window.Swap()
+					continue
+				}
 
-	// Set up VAO
-	vao.Enable(2, posvbo, program.Attrib("position"))
-	vao.Enable(2, vbo, program.Attrib("texCoord"),
-		gli.VAOStride(4))
-	vao.Enable(1, vbo, program.Attrib("foreColor"),
-		gli.VAOStride(4), gli.VAOOffset(2))
-	vao.Enable(1, vbo, program.Attrib("backColor"),
-		gli.VAOStride(4), gli.VAOOffset(3))
+				switch e := ie.(type) {
+				case win.EventMouseButton:
+					mousetrans.Button(e.Button, e.Action, e.Mod)
+				case win.EventMousePos:
+					mousetrans.Pos(e.X, e.Y)
+				case win.EventChar:
+					eh.Char(e.Char)
+				case win.EventKey:
+					ev, ok := keytrans.Key(e.Key, e.Action, e.Mod)
+					if ok {
+						eh.Key(ev)
+					}
+				case win.EventResize:
+					width = e.Width
+					height = e.Height
+					gli.Viewport(image.Rectangle{Max: image.Point{X: width, Y: height}})
+					grid.Resize(width, height)
+					vCoords, vIndex, vData := grid.Buffers()
+					posvbo.Upload(vCoords)
+					idxvbo.Upload(vIndex)
+					vbo.Upload(vData)
 
-	// Set uniforms
-	program.Uniform("tex").SetSampler(1)
-	program.Uniform("colorData[0]").SetFloat(colorData...)
-	program.Uniform("runeSize").SetFloat(float32(grid.RuneSize().X), float32(grid.RuneSize().Y))
-
-	draw, err := gli.NewDraw(gli.TRIANGLES, program, vao,
-		gli.DrawIndex(idxvbo),
-	gli.DrawTexture(texture, 1))
-	Panic(err)
-
-	clear, err := gli.NewClear(gli.ClearColor(0,0,0,1))
-	Panic(err)
-
-	for !window.ShouldClose() && !eh.Fin(false) {
-		//fmt.Printf("draw\n")
-
-		// Render scene
-		grid.clearData()
-		eh.Draw(grid)
-		_, _, vData = grid.Buffers()
-		vbo.Update(0, vData)
-
-		// Draw scene
-		clear.Clear()
-		//texture.Use(1)
-		draw.Draw(0, grid.Vertices())
-
-		window.Swap()
-	}
+				}
+			}
+		})))
 }

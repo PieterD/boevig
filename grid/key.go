@@ -3,6 +3,7 @@ package grid
 import (
 	"fmt"
 
+	"github.com/PieterD/glimmer/win"
 	"github.com/go-gl/glfw/v3.2/glfw"
 )
 
@@ -29,15 +30,15 @@ func newKeyTranslator() *keyTranslator {
 
 type keyTranslator struct{}
 
-func (trans *keyTranslator) Key(gk glfw.Key, action glfw.Action, mods glfw.ModifierKey) (KeyEvent, bool) {
+func (trans *keyTranslator) Key(gk win.Key, action win.Action, mod win.Mod) (KeyEvent, bool) {
 	k := Key(gk)
-	if action == glfw.Press || action == glfw.Repeat {
+	if action == win.ActionPress || action == win.ActionRepeat {
 		_, ok := ignoreKeys[k]
 		if !ok {
 			return KeyEvent{
 				Key:    k,
-				Mod:    ModifierKey(mods),
-				Repeat: action == glfw.Repeat,
+				Mod:    ModifierKey(mod),
+				Repeat: action == win.ActionRepeat,
 			}, true
 		}
 	}

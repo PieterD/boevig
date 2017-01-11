@@ -3,6 +3,7 @@ package grid
 import (
 	"image"
 
+	"github.com/PieterD/glimmer/win"
 	"github.com/go-gl/glfw/v3.2/glfw"
 )
 
@@ -24,9 +25,9 @@ func newMouseTranslator(grid *Grid, eh EventHandler) *mouseTranslator {
 	}
 }
 
-func (trans *mouseTranslator) Pos(posx, posy float64) {
-	x := (int(posx) - trans.grid.padx)
-	y := (int(posy) - trans.grid.pady)
+func (trans *mouseTranslator) Pos(posx, posy int) {
+	x := posx - trans.grid.padx
+	y := posy - trans.grid.pady
 
 	if x < 0 || y < 0 {
 		return
@@ -79,12 +80,12 @@ const (
 	MouseButtonMiddle MouseButton = MouseButton(glfw.MouseButtonMiddle)
 )
 
-func (trans *mouseTranslator) Button(gbutton glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
-	if gbutton != glfw.MouseButtonLeft && gbutton != glfw.MouseButtonRight && gbutton != glfw.MouseButtonMiddle {
+func (trans *mouseTranslator) Button(gbutton win.Button, action win.Action, mods win.Mod) {
+	if gbutton != win.ButtonLeft && gbutton != win.ButtonRight && gbutton != win.ButtonMiddle {
 		return
 	}
 	button := MouseButton(gbutton)
-	if action == glfw.Press {
+	if action == win.ActionPress {
 		if trans.down {
 			return
 		}
@@ -94,7 +95,7 @@ func (trans *mouseTranslator) Button(gbutton glfw.MouseButton, action glfw.Actio
 		trans.start = trans.last
 		return
 	}
-	if action == glfw.Release {
+	if action == win.ActionRelease {
 		if !trans.down || trans.button != button {
 			return
 		}
